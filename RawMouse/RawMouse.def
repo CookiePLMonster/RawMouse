@@ -1,0 +1,5 @@
+LIBRARY		RawMouse.asi
+EXPORTS
+	RawMouse_UsesGKeys			@1
+	RawMouse_GetNewGKeysState	@2
+	RawMouse_GetOldGKeysState	@3

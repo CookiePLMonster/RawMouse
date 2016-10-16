@@ -60,6 +60,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
       <AdditionalDependencies>logitech/LogitechGkeyLib.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <ModuleDefinitionFile>RawMouse.def</ModuleDefinitionFile>
     </Link>
     <PostBuildEvent />
     <PostBuildEvent>
@@ -85,6 +86,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <SubSystem>Windows</SubSystem>
       <AdditionalDependencies>logitech/LogitechGkeyLib.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <ModuleDefinitionFile>RawMouse.def</ModuleDefinitionFile>
     </Link>
     <PostBuildEvent />
     <PostBuildEvent>

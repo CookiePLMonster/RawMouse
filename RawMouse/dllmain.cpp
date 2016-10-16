@@ -167,6 +167,8 @@ private:
 
 public:
 	static inline CMouseControllerState&	GetMouseStateBuffer() { return PCTempMouseControllerState; }
+	static inline const CGKeysControllerState* GetNewGKeysState() { return &NewGKeysState; }
+	static inline const CGKeysControllerState* GetOldGKeysState() { return &OldGKeysState; }
 
 	void				UpdateMouse();
 
@@ -556,4 +558,24 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 
 	}
 	return TRUE;
+}
+
+// Exports for mods/CLEO
+extern "C" {
+
+BOOL RawMouse_UsesGKeys()
+{
+	return bUsesGKeys ? TRUE : FALSE;
+}
+
+const CGKeysControllerState* RawMouse_GetNewGKeysState()
+{
+	return CPad::GetNewGKeysState();
+}
+
+const CGKeysControllerState* RawMouse_GetOldGKeysState()
+{
+	return CPad::GetOldGKeysState();
+}
+
 }
