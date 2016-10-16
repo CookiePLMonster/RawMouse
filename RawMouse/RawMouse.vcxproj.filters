@@ -13,6 +13,9 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Header Files\logitech">
+      <UniqueIdentifier>{d9317e76-755e-415c-9f40-83ac7732a85b}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="dllmain.cpp">
@@ -25,6 +28,9 @@
     </ClInclude>
     <ClInclude Include="MenuManager.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="logitech\LogitechGkeyLib.h">
+      <Filter>Header Files\logitech</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

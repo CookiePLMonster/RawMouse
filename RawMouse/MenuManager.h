@@ -161,7 +161,7 @@ public:
 	__int16 field_1ADC;
 	bool                m_bChangeVideoMode;
 	__int8 field_1ADF;
-	__int32 field_1AE0;
+	int m_PressedMouseButton;
 	__int32 field_1AE4;
 	__int8 field_1AE8;
 	__int8 field_1AE9;

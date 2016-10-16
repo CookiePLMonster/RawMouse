@@ -8,6 +8,11 @@
 #include "MemoryMgr.h"
 #include "MenuManager.h"
 
+#include "logitech/LogitechGkeyLib.h"
+
+// GKey uniquefier for CControllerConfigManager
+#define GKEY_UID					0x4C470000
+
 struct PsGlobalType
 {
 	HWND	window;
@@ -36,6 +41,24 @@ struct RsGlobalType
 	void*			keyboard;
 	void*			mouse;
 	void*			pad;
+};
+
+// Logitech G Keys
+class CGKeysControllerState
+{
+public:
+	bool MouseGKeyState[LOGITECH_MAX_MOUSE_BUTTONS];
+
+public:
+	bool CheckForInput() const
+	{
+		for ( ptrdiff_t i = 6; i <= LOGITECH_MAX_MOUSE_BUTTONS; ++i )
+		{
+			if ( MouseGKeyState[i-1] )
+				return true;
+		}
+		return false;
+	}
 };
 
 class CMouseControllerState
@@ -140,12 +163,27 @@ private:
 	static CMouseControllerState&	NewMouseControllerState;
 	static CMouseControllerState&	OldMouseControllerState;
 
+	static CGKeysControllerState	NewGKeysState, OldGKeysState, TempGKeysState;
+
 public:
 	static inline CMouseControllerState&	GetMouseStateBuffer() { return PCTempMouseControllerState; }
 
 	void				UpdateMouse();
+
+	// Should be CControllerConfigManager
+	static uint32_t				GetGKeyJustDown();
+	static bool					GetIsGKeyDown( uint32_t key );
+	static const char*			GetGKeyTextMouse( uint32_t key );
+
+	static constexpr uint32_t PackGKeySymbolMouse( int gkey )
+	{ return GKEY_UID | 0x8000 | gkey; } // 'LG' | mouse bit | mode 0 | gkey
+
+	static void					UpdateGKeys();
+	static void					ProcessGKeyInput( GkeyCode gkeyCode, const wchar_t* gkeyOrButtonString, void* context );
 };
 
+
+CGKeysControllerState	CPad::NewGKeysState, CPad::OldGKeysState, CPad::TempGKeysState;
 
 CMouseControllerState&	CPad::PCTempMouseControllerState = *(CMouseControllerState*)0xB73404;
 CMouseControllerState&	CPad::NewMouseControllerState = *(CMouseControllerState*)0xB73418;
@@ -158,6 +196,8 @@ CMenuManager&					FrontEndMenuManager = **AddressByVersion<CMenuManager**>(0x405
 RsGlobalType&	RsGlobal = **AddressByVersion<RsGlobalType**>(0x619604, 0, 0);
 
 int&	snTimeInMilliseconds =  **AddressByVersion<int**>(0x53F51C, 0, 0);
+
+static bool bUsesGKeys = false; // Are Logitech G Keys in use?
 
 inline bool IsForeground()
 {
@@ -222,9 +262,62 @@ void CPad::UpdateMouse()
 		// Clear mouse movement data and scroll data in temp buffer
 		PCTempMouseControllerState.X = PCTempMouseControllerState.Y = PCTempMouseControllerState.Z = 0.0f;
 		PCTempMouseControllerState.wheelDown = PCTempMouseControllerState.wheelUp = false;
+
+		// Update Logitech G Keys
+		if ( bUsesGKeys )
+			UpdateGKeys();
 		
-		if ( NewMouseControllerState.CheckForInput() )
+		if ( NewMouseControllerState.CheckForInput() || NewGKeysState.CheckForInput() )
 			LastTimeTouched = snTimeInMilliseconds;
+	}
+}
+
+uint32_t CPad::GetGKeyJustDown()
+{
+	for ( ptrdiff_t i = 6; i <= LOGITECH_MAX_MOUSE_BUTTONS; i++ )
+	{
+		if ( NewGKeysState.MouseGKeyState[ i - 1 ] && !OldGKeysState.MouseGKeyState[ i - 1 ] )
+			return PackGKeySymbolMouse( i );
+	}
+	return 0;
+}
+
+bool CPad::GetIsGKeyDown( uint32_t keyID )
+{
+	// Is this mouse?
+	if ( (keyID & 0x8000) != 0 )
+	{
+		return NewGKeysState.MouseGKeyState[ (keyID & 0xFF) - 1 ];
+	}
+	return false;
+}
+
+const char* CPad::GetGKeyTextMouse( uint32_t keyID )
+{
+	++keyID;
+	keyID &= 0xFF;
+	if ( keyID >= 6 && keyID <= LOGITECH_MAX_MOUSE_BUTTONS )
+	{
+		static const char* mouseButtonNames[] = { nullptr, nullptr, nullptr, nullptr, nullptr, 
+			"MOUSE BTN 6", "MOUSE BTN 7", "MOUSE BTN 8", "MOUSE BTN 9", "MOUSE BTN 10", "MOUSE BTN 11", "MOUSE BTN 12",
+			"MOUSE BTN 13", "MOUSE BTN 14", "MOUSE BTN 15", "MOUSE BTN 16", "MOUSE BTN 17", "MOUSE BTN 18", "MOUSE BTN 19", "MOUSE BTN 20" };
+		return mouseButtonNames[ keyID - 1 ];
+	}
+	return nullptr;
+}
+
+void CPad::UpdateGKeys()
+{
+	OldGKeysState = NewGKeysState;
+	NewGKeysState = TempGKeysState;
+}
+
+void CPad::ProcessGKeyInput(GkeyCode gkeyCode, const wchar_t* gkeyOrButtonString, void* context)
+{
+	// TODO: Keyboard
+	if ( gkeyCode.mouse )
+	{
+		TempGKeysState.MouseGKeyState[ gkeyCode.keyIdx - 1 ] = gkeyCode.keyDown == 1;
 	}
 }
 
@@ -323,6 +416,88 @@ LRESULT CALLBACK CustomWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPara
 }
 static auto* pCustomWndProc = CustomWndProc;
 
+void __declspec(naked) GetGKeyJustDownHack()
+{
+	_asm
+	{
+		call	CPad::GetGKeyJustDown
+		mov		[esi].m_PressedMouseButton, eax
+		retn
+	}
+}
+
+void __declspec(naked) GetGKeyTextMouseHack()
+{
+	_asm
+	{
+		push	eax
+		call	CPad::GetGKeyTextMouse
+		add     esp, 4
+		retn	4
+	}
+}
+
+static bool (__thiscall *varGetIsMouseButtonDown)(void*, uint32_t keyID );
+bool __fastcall GetIsMouseButtonDown( void* confmgr, int, uint32_t keyID )
+{
+	if( varGetIsMouseButtonDown( confmgr, keyID ) )
+		return true;
+
+	// Is this GKey?
+	if ( (keyID & 0xFFFF0000) == GKEY_UID )
+		return CPad::GetIsGKeyDown( keyID );
+	return false;
+}
+
+static bool (__thiscall *varGetIsMouseButtonUp)(void*, uint32_t keyID );
+bool __fastcall GetIsMouseButtonUp( void* confmgr, int, uint32_t keyID )
+{
+	if( varGetIsMouseButtonUp( confmgr, keyID ) )
+		return true;
+
+	// Is this GKey?
+	if ( (keyID & 0xFFFF0000) == GKEY_UID )
+		return !CPad::GetIsGKeyDown( keyID );
+	return false;
+}
+
+const char* __stdcall GetMXB1Text( const char* )
+{
+	return "MOUSE BTN 4";
+}
+
+const char* __stdcall GetMXB2Text( const char* )
+{
+	return "MOUSE BTN 5";
+}
+
+static BOOL			(*IsAlreadyRunning)();
+BOOL InjectDelayedPatches_SA_10()
+{
+	if ( !IsAlreadyRunning() )
+	{
+		logiGkeyCBContext context;
+		context.gkeyCallBack = CPad::ProcessGKeyInput;
+		context.gkeyContext = nullptr;
+		bUsesGKeys = LogiGkeyInit( &context ) != FALSE;
+
+		return FALSE;
+	}
+	return TRUE;
+}
+
+static void (*orgOnExit)();
+void OnExit()
+{
+	orgOnExit();
+
+	if ( bUsesGKeys )
+	{
+		LogiGkeyShutdown();
+		bUsesGKeys = false;
+	}
+}
+
 void Patch_SA_10()
 {
 	using namespace Memory;
@@ -337,6 +512,27 @@ void Patch_SA_10()
 
 	OldWndProc = *(LRESULT (CALLBACK***)(HWND, UINT, WPARAM, LPARAM))AddressByRegion_10<DWORD>(0x748454);
 	Patch(AddressByRegion_10<DWORD>(0x748454), &pCustomWndProc);
+
+	// G Keys hacks
+	InjectHook( 0x57E51A, GetGKeyJustDownHack );
+
+	ReadCall( 0x5314E0, varGetIsMouseButtonDown );
+	InjectHook( 0x5314E0, GetIsMouseButtonDown );
+
+	ReadCall( 0x5315F2, varGetIsMouseButtonUp );
+	InjectHook( 0x5315F2, GetIsMouseButtonUp );
+
+	InjectHook( 0x52F42E, GetGKeyTextMouseHack, PATCH_JUMP );
+	InjectHook( 0x52F417, GetMXB1Text );
+	InjectHook( 0x52F429, GetMXB2Text );
+
+	int			pIsAlreadyRunning = AddressByRegion_10<int>(0x74872D);
+	ReadCall( pIsAlreadyRunning, IsAlreadyRunning );
+	InjectHook(pIsAlreadyRunning, InjectDelayedPatches_SA_10);
+
+	int pOnExit = AddressByRegion_10<int>(0x748EDA);
+	ReadCall( pOnExit, orgOnExit );
+	InjectHook(pOnExit, OnExit);
 }
 
 BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
@@ -357,6 +553,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 		//else if ( *(DWORD*)DynBaseAddress(0x858C61) == 0x3539F633) Patch_SA_NewSteam_r2_lv();
 		
 		else return FALSE;
+
 	}
 	return TRUE;
 }
