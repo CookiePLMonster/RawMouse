@@ -1,14 +1,25 @@
 #ifndef __MEMORYMGR
 #define __MEMORYMGR
 
+// Switches:
+// _MEMORY_NO_CRT - don't include anything "complex" like ScopedUnprotect or memset
+// _MEMORY_DECLS_ONLY - don't include anything but macroes
+
 #define WRAPPER __declspec(naked)
 #define DEPRECATED __declspec(deprecated)
 #define EAXJMP(a) { _asm mov eax, a _asm jmp eax }
 #define VARJMP(a) { _asm jmp a }
-#define WRAPARG(a) UNREFERENCED_PARAMETER(a)
+#define WRAPARG(a) ((int)a)
 
 #define NOVMT __declspec(novtable)
-#define SETVMT(a) *((DWORD_PTR*)this) = (DWORD_PTR)a
+#define SETVMT(a) *((uintptr_t*)this) = (uintptr_t)a
+
+#ifndef _MEMORY_DECLS_ONLY
+
+#define WIN32_LEAN_AND_MEAN
+#include <Windows.h>
+
+#include <cstdint>
 
 enum
 {
@@ -30,7 +41,7 @@ inline bool* GetEuropean()
 
 inline void* GetDummy()
 {
-	static DWORD		dwDummy;
+	static uintptr_t		dwDummy;
 	return &dwDummy;
 }
 
@@ -42,117 +53,223 @@ inline AT DynBaseAddress(AT address)
 
 #if defined _GTA_III
 
-// This function initially detects III version then chooses the address basing on game version
-template<typename T>
-inline T AddressByVersion(DWORD address10, DWORD address11, DWORD addressSteam)
+inline void InitializeVersions()
 {
 	signed char*	bVer = GetVer();
 
 	if ( *bVer == -1 )
 	{
-		if (*(DWORD*)0x5C1E70 == 0x53E58955) *bVer = 0;
-		else if (*(DWORD*)0x5C2130 == 0x53E58955) *bVer = 1;
-		else if (*(DWORD*)0x5C6FD0 == 0x53E58955) *bVer = 2;
+		if (*(uint32_t*)0x5C1E70 == 0x53E58955) *bVer = 0;
+		else if (*(uint32_t*)0x5C2130 == 0x53E58955) *bVer = 1;
+		else if (*(uint32_t*)0x5C6FD0 == 0x53E58955) *bVer = 2;
 	}
+}
 
-	switch ( *bVer )
+// This function initially detects III version then chooses the address basing on game version
+template<typename T>
+inline T AddressByVersion(uintptr_t address10, uintptr_t address11, uintptr_t addressSteam)
+{
+	InitializeVersions();
+
+	signed char		bVer = *GetVer();
+
+	switch ( bVer )
 	{
 	case 1:
+#ifdef assert
 		assert(address11);
+#endif
 		return (T)address11;
 	case 2:
+#ifdef assert
 		assert(addressSteam);
+#endif
 		return (T)addressSteam;
 	default:
+#ifdef assert
 		assert(address10);
+#endif
 		return (T)address10;
 	}
 }
 
 #elif defined _GTA_VC
 
-// This function initially detects VC version then chooses the address basing on game version
-template<typename T>
-inline T AddressByVersion(DWORD address10, DWORD address11, DWORD addressSteam)
+inline void InitializeVersions()
 {
 	signed char*	bVer = GetVer();
 
 	if ( *bVer == -1 )
 	{
-		if (*(DWORD*)0x667BF0 == 0x53E58955) *bVer = 0;
-		else if (*(DWORD*)0x667C40 == 0x53E58955) *bVer = 1;
-		else if (*(DWORD*)0x666BA0 == 0x53E58955) *bVer = 2;
+		if (*(uint32_t*)0x667BF0 == 0x53E58955) *bVer = 0;
+		else if (*(uint32_t*)0x667C40 == 0x53E58955) *bVer = 1;
+		else if (*(uint32_t*)0x666BA0 == 0x53E58955) *bVer = 2;
 	}
+}
 
-	switch ( *bVer )
+// This function initially detects VC version then chooses the address basing on game version
+template<typename T>
+inline T AddressByVersion(uintptr_t address10, uintptr_t address11, uintptr_t addressSteam)
+{
+	InitializeVersions();
+
+	signed char	bVer = *GetVer();
+
+	switch ( bVer )
 	{
 	case 1:
+#ifdef assert
 		assert(address11);
+#endif
 		return (T)address11;
 	case 2:
+#ifdef assert
 		assert(addressSteam);
+#endif
 		return (T)addressSteam;
 	default:
+#ifdef assert
 		assert(address10);
+#endif
 		return (T)address10;
 	}
 }
 
 #elif defined _GTA_SA
 
-// This function initially detects SA version then chooses the address basing on game version
-template<typename T>
-inline T AddressByVersion(DWORD address10, DWORD address11, DWORD addressSteam)
+inline void InitializeVersions()
 {
 	signed char*	bVer = GetVer();
 	bool*			bEuropean = GetEuropean();
 
 	if ( *bVer == -1 )
 	{
-		if ( *(DWORD*)DynBaseAddress(0x858D21) == 0x3539F633 )
+		if ( *(uint32_t*)DynBaseAddress(0x82457C) == 0x94BF )
 		{
-			*bVer = 3;
-			*bEuropean = false;
-		}
-
-		else if ( *(DWORD*)DynBaseAddress(0x82457C) == 0x94BF )
-		{
+			// 1.0 US
 			*bVer = 0;
 			*bEuropean = false;
 		}
-		else if ( *(DWORD*)DynBaseAddress(0x8245BC) == 0x94BF )
+		else if ( *(uint32_t*)DynBaseAddress(0x8245BC) == 0x94BF )
 		{
+			// 1.0 EU
 			*bVer = 0;
 			*bEuropean = true;
 		}
-		else if ( *(DWORD*)DynBaseAddress(0x8252FC) == 0x94BF )
+		else if ( *(uint32_t*)DynBaseAddress(0x8252FC) == 0x94BF )
 		{
+			// 1.01 US
 			*bVer = 1;
 			*bEuropean = false;
 		}
-		else if ( *(DWORD*)DynBaseAddress(0x82533C) == 0x94BF )
+		else if ( *(uint32_t*)DynBaseAddress(0x82533C) == 0x94BF )
 		{
+			// 1.01 EU
 			*bVer = 1;
 			*bEuropean = true;
 		}
-		else if (*(DWORD*)DynBaseAddress(0x85EC4A) == 0x94BF )
+		else if (*(uint32_t*)DynBaseAddress(0x85EC4A) == 0x94BF )
 		{
+			// 3.0
 			*bVer = 2;
 			*bEuropean = false;
 		}
-	}
 
-	switch ( *bVer )
+		else if ( *(uint32_t*)DynBaseAddress(0x858D21) == 0x3539F633 )
+		{
+			// newsteam r1
+			*bVer = 3;
+			*bEuropean = false;
+		}
+		else if ( *(uint32_t*)DynBaseAddress(0x858D51) == 0x3539F633 )
+		{
+			// newsteam r2
+			*bVer = 4;
+			*bEuropean = false;
+		}
+		else if ( *(uint32_t*)DynBaseAddress(0x858C61) == 0x3539F633 )
+		{
+			// newsteam r2 lv
+			*bVer = 5;
+			*bEuropean = false;
+		}
+	}
+}
+
+inline void InitializeRegion_10()
+{
+	bool*			bEuropean = GetEuropean();
+	signed char*	bVer = GetVer();
+
+	if ( *bVer == -1 )
+	{
+		if ( *(uint32_t*)0x82457C == 0x94BF )
+		{
+			*bVer = 0;
+			*bEuropean = false;
+		}
+		else if ( *(uint32_t*)0x8245BC == 0x94BF )
+		{
+			*bVer = 0;
+			*bEuropean = true;
+		}
+		else
+		{
+#ifdef assert
+			assert(!"AddressByRegion_10 on non-1.0 EXE!");
+#endif
+		}
+	}
+}
+
+inline void InitializeRegion_11()
+{
+	bool*			bEuropean = GetEuropean();
+	signed char*	bVer = GetVer();
+
+	if ( *bVer == -1 )
+	{
+		if ( *(uint32_t*)0x8252FC == 0x94BF )
+		{
+			*bVer = 1;
+			*bEuropean = false;
+		}
+		else if ( *(uint32_t*)0x82533C == 0x94BF )
+		{
+			*bVer = 1;
+			*bEuropean = true;
+		}
+		else
+		{
+#ifdef assert
+			assert(!"AddressByRegion_11 on non-1.01 EXE!");
+#endif
+		}
+	}
+}
+
+// This function initially detects SA version then chooses the address basing on game version
+template<typename T>
+inline T AddressByVersion(uintptr_t address10, uintptr_t address11, uintptr_t addressSteam)
+{
+	InitializeVersions();
+
+	signed char	bVer = *GetVer();
+	bool			bEuropean = *GetEuropean();
+
+	switch ( bVer )
 	{
 	case 1:
+#ifdef assert
 		assert(address11);
+#endif
 
 		// Safety measures - if null, return dummy var pointer to prevent a crash
 		if ( !address11 )
 			return (T)GetDummy();
 
 		// Adjust to US if needed
-		if ( !(*bEuropean) && address11 > 0x746FA0 )
+		if ( !bEuropean && address11 > 0x746FA0 )
 		{
 			if ( address11 < 0x7BB240 )
 				address11 -= 0x50;
@@ -161,24 +278,25 @@ inline T AddressByVersion(DWORD address10, DWORD address11, DWORD addressSteam)
 		}
 		return (T)address11;
 	case 2:
+#ifdef assert
 		assert(addressSteam);
+#endif
 		// Safety measures - if null, return dummy var pointer to prevent a crash
 		if ( !addressSteam )
 			return (T)GetDummy();
 
 		return (T)addressSteam;
 	case 3:
+	case 4:
+	case 5:
 		// TODO: DO
 		return (T)GetDummy();
 	default:
+#ifdef assert
 		assert(address10);
-
-		// Safety measures - if null, return dummy var pointer to prevent a crash
-		if ( !address10 )
-			return (T)GetDummy();
-
+#endif
 		// Adjust to EU if needed
-		if ( *bEuropean && address10 > 0x7466D0 )
+		if ( bEuropean && address10 > 0x7466D0 )
 		{
 			if ( address10 < 0x7BA940 )
 				address10 += 0x50;
@@ -190,31 +308,85 @@ inline T AddressByVersion(DWORD address10, DWORD address11, DWORD addressSteam)
 }
 
 template<typename T>
-inline T AddressByRegion_10(DWORD address10)
+inline T AddressByVersion(uintptr_t address10, uintptr_t address11, uintptr_t addressSteam, uintptr_t addressNewsteamR2, uintptr_t addressNewsteamR2_LV)
 {
-	bool*			bEuropean = GetEuropean();
-	signed char*	bVer = GetVer();
+	InitializeVersions();
 
-	if ( *bVer == -1 )
+	signed char	bVer = *GetVer();
+	bool			bEuropean = *GetEuropean();
+
+	switch ( bVer )
 	{
-		if ( *(DWORD*)0x82457C == 0x94BF )
+	case 1:
+#ifdef assert
+		assert(address11);
+#endif
+
+		// Safety measures - if null, return dummy var pointer to prevent a crash
+		if ( !address11 )
+			return (T)GetDummy();
+
+		// Adjust to US if needed
+		if ( bEuropean && address11 > 0x746FA0 )
 		{
-			*bVer = 0;
-			*bEuropean = false;
+			if ( address11 < 0x7BB240 )
+				address11 -= 0x50;
+			else
+				address11 -= 0x40;
 		}
-		else if ( *(DWORD*)0x8245BC == 0x94BF )
+		return (T)address11;
+	case 2:
+#ifdef assert
+		assert(addressSteam);
+#endif
+		// Safety measures - if null, return dummy var pointer to prevent a crash
+		if ( !addressSteam )
+			return (T)GetDummy();
+
+		return (T)addressSteam;
+	case 3:
+		return (T)GetDummy();
+	case 4:
+#ifdef assert
+		assert(addressNewsteamR2);
+#endif
+		if ( !addressNewsteamR2 )
+			return (T)GetDummy();
+
+		return (T)DynBaseAddress(addressNewsteamR2);
+	case 5:
+#ifdef assert
+		assert(addressNewsteamR2_LV);
+#endif
+		if ( !addressNewsteamR2_LV )
+			return (T)GetDummy();
+
+		return (T)DynBaseAddress(addressNewsteamR2_LV);
+	default:
+#ifdef assert
+		assert(address10);
+#endif
+		// Adjust to EU if needed
+		if ( bEuropean && address10 > 0x7466D0 )
 		{
-			*bVer = 0;
-			*bEuropean = true;
+			if ( address10 < 0x7BA940 )
+				address10 += 0x50;
+			else
+				address10 += 0x40;
 		}
-		else
-		{
-			assert(!"AddressByRegion_10 on non-1.0 EXE!");
-		}
+		return (T)address10;
 	}
+}
+
+template<typename T>
+inline T AddressByRegion_10(uintptr_t address10)
+{
+	InitializeRegion_10();
+
+	bool			bEuropean = *GetEuropean();
 
 	// Adjust to EU if needed
-	if ( *bEuropean && address10 > 0x7466D0 )
+	if ( bEuropean && address10 > 0x7466D0 )
 	{
 		if ( address10 < 0x7BA940 )
 			address10 += 0x50;
@@ -225,31 +397,14 @@ inline T AddressByRegion_10(DWORD address10)
 }
 
 template<typename T>
-inline T AddressByRegion_11(DWORD address11)
+inline T AddressByRegion_11(uintptr_t address11)
 {
-	bool*			bEuropean = GetEuropean();
-	signed char*	bVer = GetVer();
+	InitializeRegion_11();
 
-	if ( *bVer == -1 )
-	{
-		if ( *(DWORD*)0x8252FC == 0x94BF )
-		{
-			*bVer = 1;
-			*bEuropean = false;
-		}
-		else if ( *(DWORD*)0x82533C == 0x94BF )
-		{
-			*bVer = 1;
-			*bEuropean = true;
-		}
-		else
-		{
-			assert(!"AddressByRegion_11 on non-1.01 EXE!");
-		}
-	}
+	bool			bEuropean = *GetEuropean();
 
 	// Adjust to US if needed
-	if ( !(*bEuropean) && address11 > 0x746FA0 )
+	if ( !bEuropean && address11 > 0x746FA0 )
 	{
 		if ( address11 < 0x7BB240 )
 			address11 -= 0x50;
@@ -268,93 +423,47 @@ namespace Memory
 	{*(T*)address = value; }
 
 	template<typename AT>
-	inline void		Nop(AT address, unsigned int nCount)
-	// TODO: Finish multibyte nops
-	{ memset((void*)address, 0x90, nCount); }
+	inline void		Nop(AT address, size_t count)
+#ifndef _MEMORY_NO_CRT
+	{ memset((void*)address, 0x90, count); }
+#else
+	{ do {
+		*(uint8_t*)address++ = 0x90;
+	} while ( --count != 0 ); }
+#endif
 
 	template<typename AT, typename HT>
 	inline void		InjectHook(AT address, HT hook)
 	{
-		DWORD		dwHook;
+		intptr_t		dwHook;
 		_asm
 		{
 			mov		eax, hook
 			mov		dwHook, eax
 		}
 
-		*(ptrdiff_t*)((DWORD)address + 1) = dwHook - (DWORD)address - 5;
+		*(ptrdiff_t*)((intptr_t)address + 1) = dwHook - (intptr_t)address - 5;
 	}
 
 	template<typename AT, typename HT>
 	inline void		InjectHook(AT address, HT hook, unsigned int nType)
 	{
-		DWORD		dwHook;
+		intptr_t		dwHook;
 		_asm
 		{
 			mov		eax, hook
 			mov		dwHook, eax
 		}
 
-		*(BYTE*)address = nType == PATCH_JUMP ? 0xE9 : 0xE8;
+		*(uint8_t*)address = nType == PATCH_JUMP ? 0xE9 : 0xE8;
 
-		*(ptrdiff_t*)((DWORD)address + 1) = dwHook - (DWORD)address - 5;
-	}
-};
-
-namespace MemoryVP
-{
-	template<typename T, typename AT>
-	inline void		Patch(AT address, T value)
-	{
-		DWORD		dwProtect[2];
-		VirtualProtect((void*)address, sizeof(T), PAGE_EXECUTE_READWRITE, &dwProtect[0]);
-		*(T*)address = value;
-		VirtualProtect((void*)address, sizeof(T), dwProtect[0], &dwProtect[1]);
+		*(ptrdiff_t*)((intptr_t)address + 1) = dwHook - (intptr_t)address - 5;
 	}
 
-	template<typename AT>
-	inline void		Nop(AT address, unsigned int nCount)
+	template<typename Func, typename AT>
+	inline void		ReadCall(AT address, Func& func)
 	{
-		DWORD		dwProtect[2];
-		VirtualProtect((void*)address, nCount, PAGE_EXECUTE_READWRITE, &dwProtect[0]);
-		memset((void*)address, 0x90, nCount);
-		VirtualProtect((void*)address, nCount, dwProtect[0], &dwProtect[1]);
-	}
-
-	template<typename AT, typename HT>
-	inline void		InjectHook(AT address, HT hook)
-	{
-		DWORD		dwProtect[2];
-
-		VirtualProtect((void*)((DWORD)address + 1), 4, PAGE_EXECUTE_READWRITE, &dwProtect[0]);
-		DWORD		dwHook;
-		_asm
-		{
-			mov		eax, hook
-			mov		dwHook, eax
-		}
-
-		*(ptrdiff_t*)((DWORD)address + 1) = (DWORD)dwHook - (DWORD)address - 5;
-		VirtualProtect((void*)((DWORD)address + 1), 4, dwProtect[0], &dwProtect[1]);
-	}
-
-	template<typename AT, typename HT>
-	inline void		InjectHook(AT address, HT hook, unsigned int nType)
-	{
-		DWORD		dwProtect[2];
-
-		VirtualProtect((void*)address, 5, PAGE_EXECUTE_READWRITE, &dwProtect[0]);
-		*(BYTE*)address = nType == PATCH_JUMP ? 0xE9 : 0xE8;
-
-		DWORD		dwHook;
-		_asm
-		{
-			mov		eax, hook
-			mov		dwHook, eax
-		}
-
-		*(ptrdiff_t*)((DWORD)address + 1) = (DWORD)dwHook - (DWORD)address - 5;
-		VirtualProtect((void*)address, 5, dwProtect[0], &dwProtect[1]);
+		func = Func(*(ptrdiff_t*)((intptr_t)address+1) + (intptr_t)address + 5);
 	}
 
 	namespace DynBase
@@ -362,27 +471,175 @@ namespace MemoryVP
 		template<typename T, typename AT>
 		inline void		Patch(AT address, T value)
 		{
-			MemoryVP::Patch(DynBaseAddress(address), value);
+			Memory::Patch(DynBaseAddress(address), value);
 		}
 
 		template<typename AT>
-		inline void		Nop(AT address, unsigned int nCount)
+		inline void		Nop(AT address, size_t count)
 		{
-			MemoryVP::Nop(DynBaseAddress(address), nCount);
+			Memory::Nop(DynBaseAddress(address), count);
 		}
 
 		template<typename AT, typename HT>
 		inline void		InjectHook(AT address, HT hook)
 		{
-			MemoryVP::InjectHook(DynBaseAddress(address), hook);
+			Memory::InjectHook(DynBaseAddress(address), hook);
 		}
 
 		template<typename AT, typename HT>
 		inline void		InjectHook(AT address, HT hook, unsigned int nType)
 		{
-			MemoryVP::InjectHook(DynBaseAddress(address), hook, nType);
+			Memory::InjectHook(DynBaseAddress(address), hook, nType);
+		}
+
+		template<typename Func, typename AT>
+		inline void		ReadCall(AT address, Func& func)
+		{
+			Memory::ReadCall(DynBaseAddress(address), func);
 		}
 	};
+
+	namespace VP
+	{
+		template<typename T, typename AT>
+		inline void		Patch(AT address, T value)
+		{
+			DWORD		dwProtect[2];
+			VirtualProtect((void*)address, sizeof(T), PAGE_EXECUTE_READWRITE, &dwProtect[0]);
+			Memory::Patch( address, value );
+			VirtualProtect((void*)address, sizeof(T), dwProtect[0], &dwProtect[1]);
+		}
+
+		template<typename AT>
+		inline void		Nop(AT address, size_t count)
+		{
+			DWORD		dwProtect[2];
+			VirtualProtect((void*)address, count, PAGE_EXECUTE_READWRITE, &dwProtect[0]);
+			Memory::Nop( address, count );
+			VirtualProtect((void*)address, count, dwProtect[0], &dwProtect[1]);
+		}
+
+		template<typename AT, typename HT>
+		inline void		InjectHook(AT address, HT hook)
+		{
+			DWORD		dwProtect[2];
+
+			VirtualProtect((void*)((DWORD)address + 1), 4, PAGE_EXECUTE_READWRITE, &dwProtect[0]);
+			Memory::InjectHook( address, hook );
+			VirtualProtect((void*)((DWORD)address + 1), 4, dwProtect[0], &dwProtect[1]);
+		}
+
+		template<typename AT, typename HT>
+		inline void		InjectHook(AT address, HT hook, unsigned int nType)
+		{
+			DWORD		dwProtect[2];
+
+			VirtualProtect((void*)address, 5, PAGE_EXECUTE_READWRITE, &dwProtect[0]);
+			Memory::InjectHook( address, hook, nType );
+			VirtualProtect((void*)address, 5, dwProtect[0], &dwProtect[1]);
+		}
+
+		template<typename Func, typename AT>
+		inline void		ReadCall(AT address, Func& func)
+		{
+			Memory::ReadCall(address, func);
+		}
+
+		namespace DynBase
+		{
+			template<typename T, typename AT>
+			inline void		Patch(AT address, T value)
+			{
+				VP::Patch(DynBaseAddress(address), value);
+			}
+
+			template<typename AT>
+			inline void		Nop(AT address, size_t count)
+			{
+				VP::Nop(DynBaseAddress(address), count);
+			}
+
+			template<typename AT, typename HT>
+			inline void		InjectHook(AT address, HT hook)
+			{
+				VP::InjectHook(DynBaseAddress(address), hook);
+			}
+
+			template<typename AT, typename HT>
+			inline void		InjectHook(AT address, HT hook, unsigned int nType)
+			{
+				VP::InjectHook(DynBaseAddress(address), hook, nType);
+			}
+
+			template<typename Func, typename AT>
+			inline void		ReadCall(AT address, Func& func)
+			{
+				Memory::ReadCall(DynBaseAddress(address), func);
+			}
+		};
+	};
 };
+
+#ifndef _MEMORY_NO_CRT
+
+#include <forward_list>
+#include <tuple>
+
+class ScopedUnprotect
+{
+public:
+	class Section
+	{
+	public:
+		Section( HINSTANCE hInstance, const char* name )
+		{
+			IMAGE_NT_HEADERS*		ntHeader = (IMAGE_NT_HEADERS*)((BYTE*)hInstance + ((IMAGE_DOS_HEADER*)hInstance)->e_lfanew);
+			IMAGE_SECTION_HEADER*	pSection = IMAGE_FIRST_SECTION(ntHeader);
+
+			DWORD VirtualAddress = MAXDWORD;
+			SIZE_T VirtualSize = MAXDWORD;
+			for ( SIZE_T i = 0, j = ntHeader->FileHeader.NumberOfSections; i < j; ++i, ++pSection )
+			{
+				if ( strncmp( (const char*)pSection->Name, name, IMAGE_SIZEOF_SHORT_NAME ) == 0 )
+				{
+					VirtualAddress = (DWORD)hInstance + pSection->VirtualAddress;
+					VirtualSize = pSection->Misc.VirtualSize;
+					break;
+				}
+			}
+
+			if ( VirtualAddress == MAXDWORD )
+				return;
+
+			SIZE_T QueriedSize = 0;
+			while ( QueriedSize < VirtualSize )
+			{
+				MEMORY_BASIC_INFORMATION MemoryInf;
+				DWORD dwOldProtect;
+
+				VirtualQuery( (LPCVOID)VirtualAddress, &MemoryInf, sizeof(MemoryInf) );
+				VirtualProtect( MemoryInf.BaseAddress, MemoryInf.RegionSize, PAGE_EXECUTE_READWRITE, &dwOldProtect );
+				m_queriedProtects.emplace_front( MemoryInf.BaseAddress, MemoryInf.RegionSize, MemoryInf.Protect );
+				QueriedSize += MemoryInf.RegionSize;
+			}
+		};
+
+		~Section()
+		{
+			for ( auto& it : m_queriedProtects )
+			{
+				DWORD dwOldProtect;
+				VirtualProtect( std::get<0>(it), std::get<1>(it), std::get<2>(it), &dwOldProtect );
+			}
+		}
+
+	private:
+		std::forward_list< std::tuple< LPVOID, SIZE_T, DWORD > >	m_queriedProtects;
+	};
+};
+
+#endif
+
+#endif
 
 #endif

@@ -281,7 +281,7 @@ static auto* pCustomWndProc = CustomWndProc;
 
 void Patch_SA_10()
 {
-	using namespace MemoryVP;
+	using namespace Memory;
 
 	InjectHook(0x53F3C0, &CPad::UpdateMouse, PATCH_JUMP);
 
@@ -299,6 +299,8 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 
 	if ( fdwReason == DLL_PROCESS_ATTACH )
 	{
+		ScopedUnprotect::Section Protect( GetModuleHandle( nullptr ), ".text" );
+
 		if (*(DWORD*)DynBaseAddress(0x82457C) == 0x94BF || *(DWORD*)DynBaseAddress(0x8245BC) == 0x94BF) Patch_SA_10();
 		//else if (*(DWORD*)DynBaseAddress(0x8252FC) == 0x94BF || *(DWORD*)DynBaseAddress(0x82533C) == 0x94BF) Patch_SA_11();
 		//else if (*(DWORD*)DynBaseAddress(0x85EC4A) == 0x94BF) Patch_SA_Steam();
