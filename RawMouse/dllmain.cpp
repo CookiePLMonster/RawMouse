@@ -141,18 +141,9 @@ private:
 	static CMouseControllerState&	OldMouseControllerState;
 
 public:
-	inline bool								CrossJustDown() { return NewState.CROSS && !OldState.CROSS; }
-	inline bool								RightShockJustDown() { return NewState.RIGHTSHOCK && !OldState.RIGHTSHOCK; }
 	static inline CMouseControllerState&	GetMouseStateBuffer() { return PCTempMouseControllerState; }
 
-	CControllerState	ReconcileTwoControllersInput(const CControllerState& rDevice1, const CControllerState& rDevice2);
 	void				UpdateMouse();
-
-	static CPad*		GetPad(int nPad);
-	static void			UpdatePads();
-
-	// Temp
-	static void			Inject();
 };
 
 
@@ -351,6 +342,7 @@ void Patch_SA_10()
 BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 {
 	UNREFERENCED_PARAMETER(lpvReserved);
+	UNREFERENCED_PARAMETER(hinstDLL);
 
 	if ( fdwReason == DLL_PROCESS_ATTACH )
 	{
