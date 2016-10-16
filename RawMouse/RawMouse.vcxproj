@@ -64,7 +64,9 @@
     </Link>
     <PostBuildEvent />
     <PostBuildEvent>
-      <Command>copy /y "$(TargetPath)" "D:\gry\GTA San Andreas clean\RawMouse.asi"</Command>
+      <Command>if defined GTA_SA_ROOT (
+copy /y "$(TargetPath)" "%GTA_SA_ROOT%\RawMouse.asi"
+)</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -90,7 +92,9 @@
     </Link>
     <PostBuildEvent />
     <PostBuildEvent>
-      <Command>copy /y "$(TargetPath)" "D:\gry\GTA San Andreas clean\RawMouse.asi"</Command>
+      <Command>if defined GTA_SA_ROOT (
+copy /y "$(TargetPath)" "%GTA_SA_ROOT%\RawMouse.asi"
+)</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
