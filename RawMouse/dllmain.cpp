@@ -211,8 +211,8 @@ void RegisterMouseMovement(RAWINPUT* raw)
 	CMouseControllerState&	StateBuf = CPad::GetMouseStateBuffer();
 	
 	// Movement
-	StateBuf.X = static_cast<float>(raw->data.mouse.lLastX) * 2;
-	StateBuf.Y = static_cast<float>(raw->data.mouse.lLastY) * 2;
+	StateBuf.X += static_cast<float>(raw->data.mouse.lLastX);
+	StateBuf.Y += static_cast<float>(raw->data.mouse.lLastY);
 
 	// LMB
 	if ( !StateBuf.lmb )
@@ -247,7 +247,7 @@ void RegisterMouseMovement(RAWINPUT* raw)
 	// Scroll
 	if ( raw->data.mouse.usButtonFlags & RI_MOUSE_WHEEL )
 	{
-		StateBuf.Z = static_cast<signed short>(raw->data.mouse.usButtonData);
+		StateBuf.Z += static_cast<signed short>(raw->data.mouse.usButtonData);
 		if ( StateBuf.Z < 0.0 )
 			StateBuf.wheelDown = true;
 		else if ( StateBuf.Z > 0.0 )
