@@ -48,6 +48,7 @@ class CGKeysControllerState
 {
 public:
 	bool MouseGKeyState[LOGITECH_MAX_MOUSE_BUTTONS];
+	bool KeyboardGKeyState[LOGITECH_MAX_M_STATES][LOGITECH_MAX_GKEYS];
 
 public:
 	bool CheckForInput() const
@@ -56,6 +57,14 @@ public:
 		{
 			if ( MouseGKeyState[i-1] )
 				return true;
+		}
+		for ( ptrdiff_t i = 0; i < LOGITECH_MAX_M_STATES; ++i )
+		{
+			for ( ptrdiff_t j = 0; j < LOGITECH_MAX_GKEYS; ++j )
+			{
+				if ( KeyboardGKeyState[i][j] )
+					return true;
+			}
 		}
 		return false;
 	}
@@ -173,12 +182,18 @@ public:
 	void				UpdateMouse();
 
 	// Should be CControllerConfigManager
-	static uint32_t				GetGKeyJustDown();
-	static bool					GetIsGKeyDown( uint32_t key );
+	static uint32_t				GetMouseGKeyJustDown();
+	static bool					GetIsMouseGKeyDown( uint32_t key );
 	static const char*			GetGKeyTextMouse( uint32_t key );
+
+	static uint32_t				GetKeyboardButtonJustDown();
+	static bool					GetIsKeyboardGKeyDown( uint32_t key );
+	static const char*			GetGKeyTextKeyboard( uint32_t key );
 
 	static constexpr uint32_t PackGKeySymbolMouse( int gkey )
 	{ return GKEY_UID | 0x8000 | gkey; } // 'LG' | mouse bit | mode 0 | gkey
+	static constexpr uint32_t PackGKeysSymbolKeyboard( int gkey, int mode )
+	{ return GKEY_UID | (mode << 8) | gkey; } // 'LG' | mode | gkey
 
 	static void					UpdateGKeys();
 	static void					ProcessGKeyInput( GkeyCode gkeyCode, const wchar_t* gkeyOrButtonString, void* context );
@@ -200,6 +215,8 @@ RsGlobalType&	RsGlobal = **AddressByVersion<RsGlobalType**>(0x619604, 0, 0);
 int&	snTimeInMilliseconds =  **AddressByVersion<int**>(0x53F51C, 0, 0);
 
 static bool bUsesGKeys = false; // Are Logitech G Keys in use?
+
+static char gGKeyNameBuffer[16];
 
 inline bool IsForeground()
 {
@@ -274,7 +291,7 @@ void CPad::UpdateMouse()
 	}
 }
 
-uint32_t CPad::GetGKeyJustDown()
+uint32_t CPad::GetMouseGKeyJustDown()
 {
 	for ( ptrdiff_t i = 6; i <= LOGITECH_MAX_MOUSE_BUTTONS; i++ )
 	{
@@ -284,7 +301,7 @@ uint32_t CPad::GetGKeyJustDown()
 	return 0;
 }
 
-bool CPad::GetIsGKeyDown( uint32_t keyID )
+bool CPad::GetIsMouseGKeyDown( uint32_t keyID )
 {
 	// Is this mouse?
 	if ( (keyID & 0x8000) != 0 )
@@ -296,14 +313,49 @@ bool CPad::GetIsGKeyDown( uint32_t keyID )
 
 const char* CPad::GetGKeyTextMouse( uint32_t keyID )
 {
-	++keyID;
-	keyID &= 0xFF;
-	if ( keyID >= 6 && keyID <= LOGITECH_MAX_MOUSE_BUTTONS )
+	// Is this GKey?
+	if ( (keyID & 0xFFFF0000) == GKEY_UID )
 	{
-		static const char* mouseButtonNames[] = { nullptr, nullptr, nullptr, nullptr, nullptr, 
-			"MOUSE BTN 6", "MOUSE BTN 7", "MOUSE BTN 8", "MOUSE BTN 9", "MOUSE BTN 10", "MOUSE BTN 11", "MOUSE BTN 12",
-			"MOUSE BTN 13", "MOUSE BTN 14", "MOUSE BTN 15", "MOUSE BTN 16", "MOUSE BTN 17", "MOUSE BTN 18", "MOUSE BTN 19", "MOUSE BTN 20" };
-		return mouseButtonNames[ keyID - 1 ];
+		keyID &= 0xFF;
+		sprintf( gGKeyNameBuffer, "MOUSE BTN %d", keyID + 1 );
+		return gGKeyNameBuffer;
+	}
+	return nullptr;
+}
+
+uint32_t CPad::GetKeyboardButtonJustDown()
+{
+	for ( ptrdiff_t i = 0; i < LOGITECH_MAX_M_STATES; ++i )
+	{
+		for ( ptrdiff_t j = 0; j < LOGITECH_MAX_GKEYS; ++j )
+		{
+			if ( NewGKeysState.KeyboardGKeyState[i][j] && !OldGKeysState.KeyboardGKeyState[i][j] )
+				return PackGKeysSymbolKeyboard( j + 1, i + 1 );
+		}
+	}
+
+	return 1056; // rsNULL
+}
+
+bool CPad::GetIsKeyboardGKeyDown( uint32_t keyID )
+{
+	// Is this NOT mouse?
+	if ( (keyID & 0x8000) == 0 )
+	{
+		return NewGKeysState.KeyboardGKeyState[ ((keyID>>8) & 0x7F) - 1 ][ (keyID & 0xFF) - 1 ];
+	}
+	return false;
+}
+
+const char * CPad::GetGKeyTextKeyboard( uint32_t keyID )
+{
+	// Is this GKey?
+	if ( (keyID & 0xFFFF0000) == GKEY_UID )
+	{
+		int mode = (keyID>>8) & 0x7F;
+		int key = keyID & 0xFF;
+		sprintf( gGKeyNameBuffer, "G%d/M%d", key + 1, mode + 1 );
+		return gGKeyNameBuffer;
 	}
 	return nullptr;
 }
@@ -316,10 +368,13 @@ void CPad::UpdateGKeys()
 
 void CPad::ProcessGKeyInput(GkeyCode gkeyCode, const wchar_t* gkeyOrButtonString, void* context)
 {
-	// TODO: Keyboard
 	if ( gkeyCode.mouse )
 	{
 		TempGKeysState.MouseGKeyState[ gkeyCode.keyIdx - 1 ] = gkeyCode.keyDown == 1;
+	}
+	else
+	{
+		TempGKeysState.KeyboardGKeyState[ gkeyCode.mState - 1 ][ gkeyCode.keyIdx - 1 ] = gkeyCode.keyDown == 1;
 	}
 }
 
@@ -422,7 +477,7 @@ void __declspec(naked) GetGKeyJustDownHack()
 {
 	_asm
 	{
-		call	CPad::GetGKeyJustDown
+		call	CPad::GetMouseGKeyJustDown
 		mov		[esi].m_PressedMouseButton, eax
 		retn
 	}
@@ -439,6 +494,17 @@ void __declspec(naked) GetGKeyTextMouseHack()
 	}
 }
 
+void __declspec(naked) GetGKeyTextKeyboardHack()
+{
+	_asm
+	{
+		push	eax
+		call	CPad::GetGKeyTextKeyboard
+		add		esp, 0Ch
+		retn	8
+	}
+}
+
 static bool (__thiscall *varGetIsMouseButtonDown)(void*, uint32_t keyID );
 bool __fastcall GetIsMouseButtonDown( void* confmgr, int, uint32_t keyID )
 {
@@ -447,7 +513,7 @@ bool __fastcall GetIsMouseButtonDown( void* confmgr, int, uint32_t keyID )
 
 	// Is this GKey?
 	if ( (keyID & 0xFFFF0000) == GKEY_UID )
-		return CPad::GetIsGKeyDown( keyID );
+		return CPad::GetIsMouseGKeyDown( keyID );
 	return false;
 }
 
@@ -459,9 +525,22 @@ bool __fastcall GetIsMouseButtonUp( void* confmgr, int, uint32_t keyID )
 
 	// Is this GKey?
 	if ( (keyID & 0xFFFF0000) == GKEY_UID )
-		return !CPad::GetIsGKeyDown( keyID );
+		return !CPad::GetIsMouseGKeyDown( keyID );
 	return false;
 }
+
+static bool (__thiscall *varGetIsKeyboardKeyDown)(void*, uint32_t keyID );
+bool __fastcall GetIsKeyboardKeyDown( void* confmgr, int, uint32_t keyID )
+{
+	if ( varGetIsKeyboardKeyDown( confmgr, keyID) )
+		return true;
+
+	// Is this GKey?
+	if ( (keyID & 0xFFFF0000) == GKEY_UID )
+		return CPad::GetIsKeyboardGKeyDown( keyID );
+	return false;
+}
+
 
 const char* __stdcall GetMXB1Text( const char* )
 {
@@ -471,6 +550,18 @@ const char* __stdcall GetMXB1Text( const char* )
 const char* __stdcall GetMXB2Text( const char* )
 {
 	return "MOUSE BTN 5";
+}
+
+
+static uint32_t (*orgEditCodesForControls)(uint32_t*, int);
+static uint32_t* EditCodesForControls_GKeys( uint32_t* pKey, int mode )
+{
+	orgEditCodesForControls( pKey, mode );
+	if ( *pKey != 1056 ) // rsNULL
+		return pKey;
+
+	*pKey = CPad::GetKeyboardButtonJustDown();
+	return pKey;
 }
 
 static BOOL			(*IsAlreadyRunning)();
@@ -527,6 +618,17 @@ void Patch_SA_10()
 	InjectHook( 0x52F42E, GetGKeyTextMouseHack, PATCH_JUMP );
 	InjectHook( 0x52F417, GetMXB1Text );
 	InjectHook( 0x52F429, GetMXB2Text );
+
+	ReadCall( 0x57E502, orgEditCodesForControls );
+	InjectHook( 0x57E502, EditCodesForControls_GKeys );
+
+	ReadCall( 0x531194, varGetIsKeyboardKeyDown );
+	InjectHook( 0x531194, GetIsKeyboardKeyDown );
+	InjectHook( 0x5312A7, GetIsKeyboardKeyDown );
+	InjectHook( 0x5313BE, GetIsKeyboardKeyDown );
+	InjectHook( 0x531422, GetIsKeyboardKeyDown );
+
+	InjectHook( 0x5302E5, GetGKeyTextKeyboardHack, PATCH_JUMP );
 
 	int			pIsAlreadyRunning = AddressByRegion_10<int>(0x74872D);
 	ReadCall( pIsAlreadyRunning, IsAlreadyRunning );
