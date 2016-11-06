@@ -277,10 +277,6 @@ void CPad::UpdateMouse()
 			if ( MousePointerStateHelper.m_bHorizontalInvert )
 				NewMouseControllerState.Y = -NewMouseControllerState.Y;
 		}
-		
-		// Clear mouse movement data and scroll data in temp buffer
-		PCTempMouseControllerState.X = PCTempMouseControllerState.Y = PCTempMouseControllerState.Z = 0.0f;
-		PCTempMouseControllerState.wheelDown = PCTempMouseControllerState.wheelUp = false;
 
 		// Update Logitech G Keys
 		if ( bUsesGKeys )
@@ -289,6 +285,10 @@ void CPad::UpdateMouse()
 		if ( NewMouseControllerState.CheckForInput() || NewGKeysState.CheckForInput() )
 			LastTimeTouched = snTimeInMilliseconds;
 	}
+
+	// Clear mouse movement data and scroll data in temp buffer
+	PCTempMouseControllerState.X = PCTempMouseControllerState.Y = PCTempMouseControllerState.Z = 0.0f;
+	PCTempMouseControllerState.wheelDown = PCTempMouseControllerState.wheelUp = false;
 }
 
 uint32_t CPad::GetMouseGKeyJustDown()
