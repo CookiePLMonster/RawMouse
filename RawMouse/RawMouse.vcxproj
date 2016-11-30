@@ -104,6 +104,10 @@ copy /y "$(TargetPath)" "%GTA_SA_ROOT%\RawMouse.asi"
     <ClInclude Include="logitech\LogitechGkeyLib.h" />
     <ClInclude Include="MemoryMgr.h" />
     <ClInclude Include="MenuManager.h" />
+    <ClInclude Include="resource.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="RawMouse.rc" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

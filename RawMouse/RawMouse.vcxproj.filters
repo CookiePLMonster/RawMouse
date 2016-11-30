@@ -32,5 +32,13 @@
     <ClInclude Include="logitech\LogitechGkeyLib.h">
       <Filter>Header Files\logitech</Filter>
     </ClInclude>
+    <ClInclude Include="resource.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="RawMouse.rc">
+      <Filter>Resource Files</Filter>
+    </ResourceCompile>
   </ItemGroup>
 </Project>
