@@ -617,7 +617,7 @@ public:
 				MEMORY_BASIC_INFORMATION MemoryInf;
 				DWORD dwOldProtect;
 
-				VirtualQuery( (LPCVOID)VirtualAddress, &MemoryInf, sizeof(MemoryInf) );
+				VirtualQuery( (LPCVOID)(VirtualAddress + QueriedSize), &MemoryInf, sizeof(MemoryInf) );
 				VirtualProtect( MemoryInf.BaseAddress, MemoryInf.RegionSize, PAGE_EXECUTE_READWRITE, &dwOldProtect );
 				m_queriedProtects.emplace_front( MemoryInf.BaseAddress, MemoryInf.RegionSize, MemoryInf.Protect );
 				QueriedSize += MemoryInf.RegionSize;
