@@ -1,5 +1,4 @@
 #define WIN32_LEAN_AND_MEAN
-#define _CRT_SECURE_NO_WARNINGS
 #define WINVER 0x0502
 #define _WIN32_WINNT 0x0502
 
@@ -317,7 +316,7 @@ const char* CPad::GetGKeyTextMouse( uint32_t keyID )
 	if ( (keyID & 0xFFFF0000) == GKEY_UID )
 	{
 		keyID &= 0xFF;
-		sprintf( gGKeyNameBuffer, "MOUSE BTN %d", keyID + 1 );
+		sprintf_s( gGKeyNameBuffer, "MOUSE BTN %d", keyID + 1 );
 		return gGKeyNameBuffer;
 	}
 	return nullptr;
@@ -352,9 +351,9 @@ const char * CPad::GetGKeyTextKeyboard( uint32_t keyID )
 	// Is this GKey?
 	if ( (keyID & 0xFFFF0000) == GKEY_UID )
 	{
-		int mode = (keyID>>8) & 0x7F;
-		int key = keyID & 0xFF;
-		sprintf( gGKeyNameBuffer, "G%d/M%d", key + 1, mode + 1 );
+		const int mode = (keyID>>8) & 0x7F;
+		const int key = keyID & 0xFF;
+		sprintf_s( gGKeyNameBuffer, "G%d/M%d", key + 1, mode + 1 );
 		return gGKeyNameBuffer;
 	}
 	return nullptr;
